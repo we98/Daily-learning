@@ -39,7 +39,7 @@
       - URL: the location of request object
     - Header lines
       - Host: www.someschool.edu. Although there is already TCP connection, it is required. When the web proxy server is used, it is useful.
-      - Connection: close/ . It points out that the connection is persistent or non-persistent.
+      - Connection: close/keep-alive . It points out that the connection is persistent or non-persistent.
       - User-agent: Mozilla/5.0. The version of user browser. Server can respond different object version according to the header.
       - Accept-language: fr. It represents the which language version user wants to get. If it does not exist in sever, the default language version will be responded.
     - Entity body
@@ -87,6 +87,52 @@
     - Header lines: To: From: Subject: 
     - Body, splitted by a blank line.
     4. Mail access protocols
-    - POP
-    - IMAP
-    - HTTP
+      - POP
+      - IMAP
+      - HTTP
+***
+9. DNS services and structure
+    1. DNS services
+    - hostname to IP address translation
+    - host aliasing
+    - mail sever aliasing
+    - load distribution
+    2. Why not centralize DNS?
+    - single point of failure
+    - traffic volume
+    - distant centralized database
+    - maintenance
+    - all in all, hard to scale
+    3. DNS structure
+    - consists of root DNS servers, top-level domain severs and authoritative DNS severs
+    4. Local DNS sever
+    - does not strictly belong to hierarchy
+    - each ISP has one
+    - when host make DNS queries, the request is sent to local DNS sever, acts as proxy
+    - make queries by iterative query or recurisive query
+    5. DNS caching
+    - once name sever learns mapping, it caches mapping
+    - cached entries may be out-of-date
+***
+10. DNS record and message
+    1. DNS record, format (name, value, type, ttl)
+    - type=A, name is hostname, value is IP
+    - type=NS, name is a domain, value is the hostname of the authoritative name sever for this domain
+    - type=CNAME, name is alias name, value is real name
+    - type=MX, name is alias name of mail sever, value is real name
+    - therefore, the mail sever and other such web sever can use the same alias
+    2. DNS message format
+    - DNS has query and reply message, which are of the same format
+    - message header(12 bytes)
+      - 2 bytes identification, the query and the reply the same
+      - flags, some bits identifies query or reply, recursion desired, recursion available, reply is authoritative.
+    - questions, include name and type(A or MA or so on)
+    - answers, one or more records in RR to answer the questions
+    - authority, records for authoritative servers
+    - additional, may be used
+***
+11. Pure P2P architecture
+    1. no always-on sever
+    2. arbitrary end systems directly communicate
+    3. peers are intermittently connected and change IP address
+    4. examples:  file distribution(BitTorrent) Streaming(KanKan) VoIP(Skype)
