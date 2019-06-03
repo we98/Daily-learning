@@ -17,13 +17,13 @@
 3. Internet transport protocols services
     1. TCP services
     - reliable transport between sender and receiver process
-    - flow control: sender don's overwhelm receiver
+    - flow control: senders don't overwhelm receivers
     - congestion control: throttle sender when network overloaded, may be not very good for the two process, but is good for the all network
     - does not provide: timing, minimum throughput guarantee, security
     - connection-oriented: setup required between sender and receiver
     2. UDP services
     - unreliable transport
-    - does not provide: reliablity, flow control, congestion control, timing, throughput guarantee, security and connection-setup
+    - does not provide: reliability, flow control, congestion control, timing, throughput guarantee, security and connection-setup
 ***
 4. Securing TCP(SSL)
     1. provides encrypted TCP connection
@@ -82,10 +82,10 @@
     - HTTP: pull SMTP: push
     - both have ASCII command/response interaction, status code
     - HTTP: each object encapsulated in its own reponse message while SMTP send multiple objects in its multipart message
-    - SMTP user persistent connections in default
+    - SMTP uses persistent connections in default
     3. SMTP message format
     - Header lines: To: From: Subject: 
-    - Body, splitted by a blank line.
+    - Body, split by a blank line.
     4. Mail access protocols
       - POP
       - IMAP

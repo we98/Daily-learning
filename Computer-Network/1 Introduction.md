@@ -5,7 +5,7 @@
     - communication links(fiber, copper, radio, satellite -- they are different in transmission rate, bandwidth)
     - packet switches(routers and switches  -- forward packets)
     - protocols(TCP, IP, HTTP -- control sending and receiving messages)
-    - Internet standards(specified by RFC, maintained)
+    - Internet standards(specified by RFC, maintained by IETF)
     2. a service view
     - infrastructure that provides service to applications
     - provides programming interface to apps(hooks that allow sending and receiving app programs to connect to Internet)
@@ -43,7 +43,7 @@
     - packet switching is great for bursty data, because it is resource sharing and simpler, but may suffer from congestion, it is with packet delay and loss.
 ***
 5. Delay, loss, throughput in networks
-    1. four sources of packet delay d(nodal) = d(transmission) + d(propagation) + d(processing) + d(queueint)
+    1. four sources of packet delay d(nodal) = d(transmission) + d(propagation) + d(processing) + d(queueing)
     - processing: check bit errors, determine output link
     - queueing: time waiting at output link for transmission, depends on congestion level of router
     - transmission: L/R
