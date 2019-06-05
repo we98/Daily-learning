@@ -67,10 +67,10 @@
 ***
 7. Web cache(proxy sever)
     1. Why web cache?
-    - reduce reponse time for client request
+    - reduce response time for client request
     - reduce traffic on an institution's access link
     2. Conditional GET
-    - the web cache send request to actual web sever, contains one header line "If-Modified-Since:", the value of this header line is the Last-Modified: header line value in the last reponse message
+    - the web cache send request to actual web sever, contains one header line "If-Modified-Since:", the value of this header line is the Last-Modified: header line value in the last response message
     - if not changed, the web cache will get a status code(304 Not Modified), and the entity body is empty. If changed, the file will be updated.
 ***
 8. Electronic mail
@@ -78,7 +78,7 @@
     - user agents
     - mail servers
     - simple mail transfer protocol, SMTP
-    2. Comparision between SMTP with HTTP
+    2. Comparasion between SMTP with HTTP
     - HTTP: pull SMTP: push
     - both have ASCII command/response interaction, status code
     - HTTP: each object encapsulated in its own reponse message while SMTP send multiple objects in its multipart message
