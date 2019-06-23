@@ -13,10 +13,10 @@
       * [10、阐述final、finally、finalize的区别。](#10、阐述final、finally、finalize的区别。)
   * [Java字符串](#java字符串)
       * [1、String和StringBuilder，StringBuffer区别？](#1、string和stringbuilder，stringbuffer区别？)
-      * [2、字符串常量池与String.intern()方法。](#2、字符串常量池与string.intern\(\)方法。)
+      * [2、字符串常量池与String.intern\(\)方法。](#2、字符串常量池与stringintern方法。)
   * [Java集合框架](#java集合框架)
       * [1、Java说出一些集合框架的优点？](#1、java说出一些集合框架的优点？)
-      * [2、集合框架中的泛型有什么优点？泛型和C++模板的对比。](#2、集合框架中的泛型有什么优点？泛型和c\+\+模板的对比。)
+      * [2、集合框架中的泛型有什么优点？泛型和C\+\+模板的对比。](#2、集合框架中的泛型有什么优点？泛型和c模板的对比。)
       * [3、为何Map接口不继承Collection接口？](#3、为何map接口不继承collection接口？)
       * [4、什么是迭代器-Iterator？](#4、什么是迭代器-iterator？)
       * [5、Iterator和ListIterator的区别是什么？](#5、iterator和listiterator的区别是什么？)
@@ -24,6 +24,9 @@
       * [7、ArrayList的问题。](#7、arraylist的问题。)
       * [8、HashMap的工作原理是什么？HashMap的一些常见问题。](#8、hashmap的工作原理是什么？hashmap的一些常见问题。)
       * [9、List的三种遍历方式对比。](#9、list的三种遍历方式对比。)
+      * [10、ConcurrentHashMap的一些问题。](#10、concurrenthashmap的一些问题。)
+      * [11、CopyOnWriteArrayList的一些问题。](#11、copyonwritearraylist的一些问题。)
+  * [Java多线程](#java多线程)
   * [Java虚拟机](#java虚拟机)
 
 
@@ -205,8 +208,9 @@ class Client{
 - Iterator对集合只能是前向遍历，ListIterator既可以前向也可以后向；
 - ListIterator实现了Iterator接口，并包含了其他功能，如增加元素，替换元素	，获取前一个和后一个的元素索引等。
 #### 6、fail-fast和fail-safe的区别与联系？
-- fail-fast机制，即快速失败机制，是java集合(Collection)中的一种错误检测机制，作用于使用迭代器对集合进行迭代的时期。当在迭代集合的过程中该集合在结构上发生改变的时候，就有可能会发生fail-fast，即抛出ConcurrentModificationException异常。fail-fast机制并不保证在不同步的修改下一定会抛出异常，它只是尽最大努力去抛出，所以这种机制一般仅用于检测bug。该机制会抛出异常，在java.util包中的集合使用该机制。具体实现机制为，在集合类中存在一个检测集合结构变化的变量modCount，每当集合结构变化时，该变量会修改。而在迭代器中也维护了一个exceptedModCount变量，起初与modCount相等，每当调用next()或remove()方法是，都会检测这两个变量是否相等，如果不相等，抛出异常，即发生fail-fast。但为什么使用迭代器调用remove()改变集合结构不会触发呢？是因为迭代器本身调用remove()的时候，会将两个变量重新设置为相等，因此当对集合同时迭代和修改时，阿里巴巴规范中明确规定到要用迭代器，而不是使用一般的for循环；
+- fail-fast机制，即快速失败机制，是java集合(Collection)中的一种错误检测机制，作用于使用迭代器对集合进行迭代的时期。当在迭代集合的过程中该集合在结构上发生改变的时候，就有可能会发生fail-fast，即抛出ConcurrentModificationException异常。fail-fast机制并不保证在不同步的修改下一定会抛出异常，它只是尽最大努力去抛出，所以这种机制一般仅用于检测bug。该机制会抛出异常，在java.util包中的集合使用该机制。具体实现机制为，在集合类中存在一个检测集合结构变化的变量modCount，每当集合结构变化时，该变量会修改。而在迭代器中也维护了一个exceptedModCount变量，起初与modCount相等，每当调用next()或remove()方法是，都会检测这两个变量是否相等，如果不相等，抛出异常，即发生fail-fast。但为什么使用迭代器调用remove()改变集合结构不会触发呢？是因为迭代器本身调用remove()的时候，会将两个变量重新设置为相等，因此当对集合同时迭代和修改时，阿里巴巴规范中明确规定到要用迭代器，而不是使用一般的for循环。
 - fail-safe机制，安全失败，采用安全失败机制的集合容器，在遍历时不是直接在集合内容上访问的，而是先复制原有集合内容，在拷贝的集合上进行遍历。所以在遍历的过程中其他线程对集合的修改不会被检测到，不会触发异常。优点是不会触发异常，缺点是需要拷贝很多无用的对象，且迭代器开始遍历的那一刻拿到的是集合拷贝，在遍历期间发生的改变是无从知晓的。java.util.concurrent包下的容器都采用安全失败，可以用于多线程并发访问，而fail-fast机制则抑制了java.util包中集合的多线程并发访问。
+- 事实上，fail-fast机制不是一种完备的机制，这种机制与同步不同，通过这种机制调节多线程并发访问容器，进行读操作的线程仍会看到失效的值，迭代器本身意识不到容器内容的修改。但是，这是一种设计上的权衡，从而降低了同步对程序性能带来的影响。
 #### 7、ArrayList的问题。
 - ArrayList和Vector的异同
   - 相同点
@@ -257,5 +261,17 @@ class Client{
       //使用Iterator或者foreach。
   }
   ```
-
+#### 10、ConcurrentHashMap的一些问题。
+- ConcurrentHashMap的一些特点：
+  - ConcurrentHashMap也是一个基于散列的Map，但是它使用了一种完全不同的加锁策略来提供更高的并发性和伸缩性。
+  - ConcurrentHashMap并不是将每个方法在同一个锁上同步使得每次只能有一个线程访问容器，而是使用一种粒度分段锁机制来实现更大程度的共享。
+  - 在这种共享机制下，任意多的读取线程可以同时访问，一定数量的写入线程可以并发修改，读取线程和写入线程也可以并发的访问。使得并发访问环境下将实现更高的吞吐量，而在单线程中只损失非常小的性能。
+  - ConcurrentHashMap返回的迭代器具有弱一致性，并非快速失败。弱一致性的迭代器可以容忍并发的修改，当创建迭代器时会遍历已有的元素，并可以（但是不保证）将修改后的数据反映给容器。
+  - 尽管ConcurrentHashMap有很多优越的改进，但还是加入了一些需要权衡的因素，对于需要在整个Map上进行计算的方法，例如size()和isEmpty()，它返回的结果在计算时可能已经过期了，所以只是一个估计值。这看上去有些不安全，但事实上，这样的方法在并发环境下用处很小，因为它们的返回值总是在不断的变化。因此，这也是一个设计上的权衡，通过弱化这些操作，来换取其他更重要操作的优化，包括get，put，containsKey，remove等。
+  - 总之，与Hashtable和synchronizedMap等同步容器相比，ConcurrentHashMap有着更多的优势，因此在大多数情况下，使用ConcurrentHashMap可以进一步提高代码的可伸缩性。
+- 必须使用同步容器的情况：
+  - ConcurrentHashMap不能被加锁来执行独占访问，因此无法使用客户端加锁来创建新的原子操作。例如，某些先检查后执行的复合操作，这种情况下只能使用同步容器并加锁。
+  - 但是ConcurrentHashMap已经为我们提供了很多现成的符合操作，如若没有则添加，若相等则删除等，可以满足大部分的情况。
+#### 11、CopyOnWriteArrayList的一些问题。
+## Java多线程
 ## Java虚拟机
