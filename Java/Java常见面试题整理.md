@@ -223,6 +223,11 @@ class Client{
   - Array和ArrayList区别
     - Array可以容纳基本类型和引用类型，ArrayList只能容纳引用类型；
     - Array大小固定，ArrayList可扩展。
+- ArrayList代码分析：
+  - ArrayList中一些默认值
+    - EMPTY_ELEMENTDATA是一个长度为0的空数组，DEFAULTCAPACITY_EMPTY_ELEMENTDATA也是一个长度为0的空数组，当调用无参构造函数时，使用后者，但调用带有capacity的构造函数时，如果显式的将长度指定为0，则使用前者。默认长度DEFAULT_CAPACITY为10，当使用无参构造函数时，长度为0将延迟到第一次add时。
+  - 扩容问题。
+    - 每次扩容1.5倍，使用移位算法，且数组最大长度为MAX_ARRAY_SIZE ，int最大值-8.
 #### 8、HashMap的工作原理是什么？HashMap的一些常见问题。
 - HashMap工作原理：
   - HashMap通过结合数组与链表的优点进行设计，是一个链表数组，基于hash的原理，使用put(k, v)将对象存储，使用get(k)获取对象。当调用这两个方法时，都会先根据key的hashCode()计算该key所在的bucket，然后进行搜索；
@@ -239,9 +244,16 @@ class Client{
   - HashMap允许null的key和value出现，而HashTable不行；
   - HashMap效率比HashTable高；
   - HashTable线程安全，适合于多线程环境。然而，这个类已经不建议使用，其内部没有过多的优化，在多线程情况下使用ConcurrentHashMap来替代。
+  - Hashtable默认的初始大小为11,每次扩容为2n+1。HashMap默认为16，每次扩容为二倍。HashMap链表长度大于默认阈值8时，会自动转为红黑树，这是一个非常大的改进，Hashtable没有这样的机制。
 - HashMap和TreeMap的选择
   - 不考虑有序性问题的话，HashMap效率更高；
   - 如果需要有序的key集合，则使用TreeMap。
+- HashMap中代码分析
+  - threshold,size,loadFactor分别代表什么含义？HashMap的一些默认值设置。
+    - size是HashMap中实际存储键值对的数量。
+    - loadFactor为负载因子，默认值为0.75f，且threshold = loadFactor * caacity,capacity代表哈希桶及数组的长度。loadFactor可以大于1，不过在内存空间充裕的情况下，尽量不要将loadFactor增大，增大的话会增加碰撞几率。同时，因为loadFactor一般小于1，所以在平均情况下，每个哈希桶也就只装一个键值对，因此HashMap的访问时间复杂度为O(1)。
+    - 当size大于threshold时，就会引起扩容。扩容是一个耗费性能的操作，所以使用之前尽量估算大小，以避免频繁的扩容。
+    - 哈希数组长度默认为16，链表转红黑树的阈值默认为8。
 #### 9、List的三种遍历方式对比。
 - 传统的for循环遍历，基于计数器：
   - 对于顺序存储的ArrayList，每次遍历平均时间复杂度为O(1)，遍历整个集合的平均时间复杂度为O(n)。
