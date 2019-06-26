@@ -228,6 +228,12 @@ class Client{
     - EMPTY_ELEMENTDATA是一个长度为0的空数组，DEFAULTCAPACITY_EMPTY_ELEMENTDATA也是一个长度为0的空数组，当调用无参构造函数时，使用后者，但调用带有capacity的构造函数时，如果显式的将长度指定为0，则使用前者。默认长度DEFAULT_CAPACITY为10，当使用无参构造函数时，长度为0将延迟到第一次add时。
   - 扩容问题。
     - 每次扩容1.5倍，使用移位算法，且数组最大长度为MAX_ARRAY_SIZE ，int最大值-8.
+  - 扩容时函数调用
+    - add()，这个函数会调用ensureCapacityInternal(size + 1)
+    - ensureCapacity(minCapacity)，这个函数会取出minCapacity与10的最大值，调用ensureExplicitCapacity(minCapacity)
+    - ensureExplicitCapacity(minCapacity)，这个函数会检查minCapacity与数组length的大小，如果minCapacity比较大，则增长数组，调用grow(minCapacity)
+    - grow(minCapacity)，这个函数是真正的数组扩容函数，这个函数会获取新的数组长度，newCapacity = oldCapacity+(oldCapacity>>1)，这个函数同时处理了newCapacity溢出变成负数的问题，我有点看不懂。总之，当需要扩容的数组长度大于Integer.MAX_VALUE-8时，新数组的长度会变为Integer.MAX_VALUE-8。如果一直添加元素，当元素数量变为Integer.MAX_VALUE-7时，数组长度会变为Integer.MAX_VALUE，如果继续添加元素，超过了整数的最大范围，则会抛出异常。这个机制由两个if判断和hugeCapacity(minCapacity)方法来保证。
+  - 最好在大量调用add之前调用ensureCapacity(minCapacity)以避免数组的频繁扩容。
 #### 8、HashMap的工作原理是什么？HashMap的一些常见问题。
 - HashMap工作原理：
   - HashMap通过结合数组与链表的优点进行设计，是一个链表数组，基于hash的原理，使用put(k, v)将对象存储，使用get(k)获取对象。当调用这两个方法时，都会先根据key的hashCode()计算该key所在的bucket，然后进行搜索；
@@ -253,7 +259,7 @@ class Client{
     - size是HashMap中实际存储键值对的数量。
     - loadFactor为负载因子，默认值为0.75f，且threshold = loadFactor * caacity,capacity代表哈希桶及数组的长度。loadFactor可以大于1，不过在内存空间充裕的情况下，尽量不要将loadFactor增大，增大的话会增加碰撞几率。同时，因为loadFactor一般小于1，所以在平均情况下，每个哈希桶也就只装一个键值对，因此HashMap的访问时间复杂度为O(1)。
     - 当size大于threshold时，就会引起扩容。扩容是一个耗费性能的操作，所以使用之前尽量估算大小，以避免频繁的扩容。
-    - 哈希数组长度默认为16，链表转红黑树的阈值默认为8。
+    - 哈希数组长度默认为16，链表转红黑树的阈值默认为8，红黑树转链表阈值为6，最大容量是1<<30，
 #### 9、List的三种遍历方式对比。
 - 传统的for循环遍历，基于计数器：
   - 对于顺序存储的ArrayList，每次遍历平均时间复杂度为O(1)，遍历整个集合的平均时间复杂度为O(n)。
