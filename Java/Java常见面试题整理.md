@@ -292,4 +292,52 @@ class Client{
   - 但是ConcurrentHashMap已经为我们提供了很多现成的符合操作，如若没有则添加，若相等则删除等，可以满足大部分的情况。
 #### 11、CopyOnWriteArrayList的一些问题。
 ## Java多线程
+#### 1、线程池的使用。
+- 线程池的状态。
+  - RUNNING，允许提交并处理任务。一旦被创建，就处于RUNNING状态，并且任务数为0。
+  - SHUTDOWN，不允许提交新的任务，但是会处理完已提交的任务。调用shutdown方法会转换为此状态。
+  - STOP，不允许提交新的任务，也不会处理阻塞队列的任务，并设置正在执行线程的标识位。调用shutdownNow方法会由RUNNING或SHUTDOWN转换为此状态。
+  - TIDYING，所有任务执行完毕，池中工作线程数为0，等待执行terminated勾子方法。
+  - TERMINATED，terminated勾子方法执行完毕。
+  ![threadpool_status](pictures\threadpool_status.png)
+- 参数介绍new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, timeUnit, workQueue, threadFactory, rejectedHandler)
+  - corePoolSize，线程池的核心线程数量。
+  - maximumPoolSize，线程池的最大线程数量。
+  - keepAliveTime，线程的最大存活时间，这个时间只对超过核心线程数量的线程有效。线程池不会区分哪些是核心线程，哪些不是，只关心数量而已。因此，这个参数并不是只对某些特定的线程有用的。
+  - timeUnit，第三个参数的时间单位。
+  - workQueue，任务队列，分为有界队列和无界队列，当有界队列已满并且线程数达到最大时，会按照第七个参数的丢弃策略丢掉任务。如果是无界队列，则不会，而且最大线程数量那个参数也没有效果。
+    - ArrayBlockingQueue，基于数组的有界队列。
+    - LinkedBlockingQueue，基于链表的有界队列，吞吐量通常高于ArrayBlockingQueue。
+    - SynchronousQueue，不储存元素的队列，每个插入操作直至有线程来调用移出操作，否则插入一直阻塞，吞吐量通常高于LinkedBlockingQueue。
+    - 等等。
+  - threadFactory，对新建的线程设置属性，如名字等。
+  - rejectedHandler，丢弃策略，当有任务需要丢弃时，会执行这个参数规定的策略。默认是AbortPolicy。
+    - AbortPolicy，直接抛出异常。
+    - CallerRunsPolicy，添加任务者所在线程直接来运行任务，就不加入到线程池中了。
+    - DiscardOldestPolicy，丢弃最旧的任务。
+    - DiscardPolicy，直接丢弃。
+    - 等等。
+- 提交任务后，线程池的处理流程。
+  - 判断是否达到核心线程数，如果没达到，创建一个新的线程处理任务。
+  - 如果核心线程已满，判断任务队列，如果未满，加入队列，如果已满，添加线程，直至到达最大线程数。
+  - 如果队列已满，也达到最大线程数，则执行丢弃策略。
+- 几种常见线程池的构造方法。(均为Executors里静态方法)
+    ```java
+    public static ExecutorService newFixedThreadPool(int nThreads){
+		return new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLIONSECONDS, new LinkedBlockingQueue<Runnable>());
+    }
+    public static ExecutorService newSingleThreadPool(){
+    	//单线程，任务按照先来后到处理
+    	return new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLIONSECONDS, new LinkedBlockingQueue<Runnable>());
+    }
+    public static ExecutorService newCachedThreadPool(){
+    	return new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+    }
+    ```
+- 线程池的选择。
+  - newCachedThreadPool，非常适用于IO密集的服务，服务器应该为每个请求创建一个线程，以免CPU因为等待IO响应而空闲。
+  - newFixedThreadPool，适用于CPU密集的工作，在这种工作中，CPU忙于计算而很少空闲，CPU能并发执行的线程数量是一定的，因此，对于需要CPU进行大量计算的工作，创建的线程数量超过CPU的并行数量没有多大的意义。
+  - CPU密集型尽量配置数量小的线程，如配置N(CPU)+1个，IO密集型由于线程并不是一直处理任务，则配置尽可能多的线程，如2*N(CPU)
+  - 建议使用有界队列，有界队列能增加系统的稳定性和预警能力。
+
 ## Java虚拟机
