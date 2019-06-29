@@ -306,7 +306,7 @@ class Client{
   - WAITING，等待状态，表示当前线程需要等待其他线程做一些特定的动作。
   - TIMED_WAITING，超时等待，不同于WAITING，在指定的时间可以自行返回。
   - TERMINATED，终止状态，表示当前线程已经执行完毕。
-  ![thread_status](pictures\thread_status.png)
+  ![thread_status](pictures/thread_status.png)
 - 理解中断状态
   - 通过调用Thread.interrupt()可以修改线程中的中断标识位，而不是使线程强行结束，线程自己通过中断标识位的改变决定做的事情。使用Thread.isInterrupted()来查看标识位。
   - 抛出InterruptedException之后，中断标识位会被清除。
@@ -324,7 +324,7 @@ class Client{
   - STOP，不允许提交新的任务，也不会处理阻塞队列的任务，并设置正在执行线程的标识位。调用shutdownNow方法会由RUNNING或SHUTDOWN转换为此状态。
   - TIDYING，所有任务执行完毕，池中工作线程数为0，等待执行terminated勾子方法。
   - TERMINATED，terminated勾子方法执行完毕。
-  ![threadpool_status](pictures\threadpool_status.png)
+  ![threadpool_status](pictures/threadpool_status.png)
 - 参数介绍new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, timeUnit, workQueue, threadFactory, rejectedHandler)
   - corePoolSize，线程池的核心线程数量。
   - maximumPoolSize，线程池的最大线程数量。
