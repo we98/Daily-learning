@@ -98,25 +98,46 @@
   - abstract不能与private，static，final或native并列修饰同一个方法
 - 抽象的（abstract）方法是否可同时是静态的（static），是否可同时是本地方法（native），是否可同时被synchronized修饰？
   - 都不能。抽象方法需要子类重写，而静态的方法是无法被重写的，因此二者是矛盾的。本地方法是由本地代码（如C代码）实现的方法，而抽象方法是没有实现的，也是矛盾的。synchronized和方法的实现细节有关，抽象方法不涉及实现细节，因此也是相互矛盾的。
-#### 8、单例模式（饱汉模式和饿汉模式）和工厂模式。
+#### 8、单例模式（饱汉模式和饿汉模式和线程安全的饿汉模式）和工厂模式。
 ```java
 public class Singleton{
 	private Singleton(){}
-	private Singleton s = new Singleton();
-	public Singleton getInstance(){
+	private static Singleton s = new Singleton();
+	public static Singleton getInstance(){
 		return s;
 	}
 }//饱汉模式
 public class Singleton{
 	private Singleton(){}
-	private Singleton s = null;
-	public Singleton getInstance(){
+	private static Singleton s = null;
+	public static Singleton getInstance(){
 		if(s == null){
 			s = new Singleton();
 		}
 		return s;
 	}
 }//饿汉模式
+public class Singleton{
+	private Singleton(){}
+	private volatile static Singleton s = null;
+	public static Singleton getInstance(){
+		if(s == null){
+			synchronized(Singleton.class){
+				if(s == null){
+					s = new Singleton();
+				}
+			}
+		}
+	}
+}//线程安全的饿汉模式
+/**
+解释：因为先检查后赋值是一个竞态条件，会发生线程安全性问题，因此使用synchronized将其包装为原子操作，实现这一步已经实现了线程安全。但是为什么要双重if判断呢？原因：如果没有这个判断条件，则无论s是否赋值，多个线程都要获得锁并进入同步代码块，然而只有一个进入同步代码块的线程能发挥作用，这增加了不必要的开销，因此使用双重检测机制。
+为什么使用volatile变量？在这里，volatile是必要的，但不是为了保证可见性，因为synchronized本身便可以保证可见性，volatile在这里的作用是为了保证有序性，因为新建对象需要下列三个步骤：
+1.为对象开辟空间
+2.初始化对象
+3.返回对象引用
+如果不使用volatile，则可能会以1-3-2的顺序进行，这在单线程的条件下没有任何问题，但是在多线程的情况下可能会让其他线程得到一个未初始化的对象引用。
+**/
 ```
 ```java
 interface IFactory{
@@ -374,11 +395,27 @@ class Client{
 - synchronized实现原理。
   - 基于进入和退出monitor对象实现，同步代码块由monitorenter和monitorexit指令来实现同步。monitorenter指令插入到同步代码块的开始位置，而monitorexit则插入到结束位置。任何一个对象都与一个monitor相关联，当一个monitor被持有后，对象将处于锁定状态。当线程执行到monitorenter时，会尝试获得对象所对应的monitor的所有权。
 - synchronized的优化，根据同一把锁的竞争激烈程度，锁会逐步升级，从偏向锁到轻量级锁再到重量级锁，锁只能升级，而不会降级。
-  - 偏向锁，针对这样的情况：锁不仅不存在多线程竞争，而且总是由同一个线程获取。因此，偏向锁是为了减少同一线程重复获取锁的代价而引入的机制。如果一个线程获取了锁，那么锁就进入了偏向模式，此时Mark Word的结构也变成了偏向锁结构。当这个线程在此请求锁时，无需进行任何的操作（没有优化的情况下即使同一线程请求同一把锁仍然需要一些耗时的CAS操作）。对于锁竞争比较激烈的情形，偏向锁会失败，但是不会立即膨胀为重量级锁，而是轻量级锁。
-  - 轻量级锁，轻量级锁针对这样的情况：线程交替执行同步代码块，但是不会同一时间访问同一把锁，如果存在同时竞争同个锁的情况，则会膨胀为重量级锁。
-  - 自旋锁，轻量级锁失败后，系统不会立即将线程挂起，而是做几个空循环自旋等待（一般不会太久，可能50或100个），如果未顺利进入临界区，则将线程挂起。这也是一种优化方式，最后只能升级为重量锁。
+  - 偏向锁，针对这样的情况：锁不仅不存在多线程竞争，而且总是由同一个线程获取。因此，偏向锁是为了减少同一线程重复获取锁的代价而引入的机制。如果一个线程获取了锁，那么锁就进入了偏向模式，此时Mark Word的结构也变成了偏向锁结构。当这个线程在此请求锁时，无需进行任何的操作（没有优化的情况下即使同一线程请求同一把锁仍然需要一些耗时的CAS操作）。对于锁竞争比较激烈的情形，偏向锁会失败，但是不会立即膨胀为重量级锁，而是轻量级锁。相比于轻量级锁，当同一线程重新获得该锁时，连CAS操作都不用做，直接获取锁。
+  - 轻量级锁，轻量级锁针对这样的情况：线程交替执行同步代码块，但是不会同一时间访问同一把锁，如果存在同时竞争同个锁的情况，则会膨胀为重量级锁。轻量级锁的实现方式是使用CAS来替代操作系统互斥量产生的消耗。
+  - 自旋锁，轻量级锁失败后，系统不会立即将线程挂起，而是做几个空循环自旋等待（一般不会太久，可能50或100个），如果未顺利进入临界区，则将线程挂起。这也是一种优化方式，最后只能升级为重量锁。自旋锁在JDK1.6引入，通过参数--XX:+UseSpinning参数来开启，自旋次数默认为10次，可以通过--XX:PreBlockSpin来修改。
+  - 锁消除，编译器检测到共享数据不存在竞争的话，就执行锁消除，可以节省毫无意义的请求锁的时间。
 #### 5、synchronized与volatile对比。
 - synchronized解决的是执行控制的问题，根本的作用是将同步代码块在并发环境下串行化，使得修饰的代码块以原子的方式执行，同时，synchronized还能保证所有CPU操作结果直接刷到主存中。而volatile是依靠CPU的缓存一致性协议解决了可见性问题，同时禁止优化解决了顺序性问题，但是不能保证原子性。
+- volatile仅能用于变量级别，synchronized可以用于变量，方法，和类级别的。
+- volatile不会造成线程阻塞，而synchronized会。
+- volatile标记的变量不会被编译器优化，而synchronized代码块里的内容可能会被优化。
+#### 6、synchronized和ReenTrantLock对比。
+- 相同点
+  - 二者都是可重入锁
+- 不同点
+  - synchronized依赖于JVM实现，而ReenTrantLock是在JDK中实现。
+  - 相比于synchronized，ReenTrantLock加入了一些高级功能，如等待可中断，公平锁，可实现选择性通知等。
+    - 中断等待的机制，通过lock.lockInterruptibly()实现这个机制，也就是说正在等待的线程可以选择放弃等待，去做其他的事情。
+    - ReenTrantLock可以实现公平锁，而synchronized只能是非公平锁。公平锁的意思是先等待的线程先获得锁。可以通过ReenTrantLock的构造函数ReentrantLock(boolean fair)来指定是否是公平的。
+    - 选择性通知，synchronized通过搭配对象的wait()和notify()/notifyAll()方法来实现等待和通知。ReenTrantLock也可以实现，但是要搭配Condition接口，但是与synchronized不同的是，一个ReenTrantLock对象可以对应多个Condition对象，也就是可以结合不同的Condition实例来进行选择性通知。synchronized相当于整个lock对象只有一个Condition实例，当调用notifyAll()时会通知所有线程，而Condition调用signalAll()指挥调用在当前对象上等待的线程，较为灵活。
+- 性能已不是选择标准
+  - 在JDK1.6之前，synchronized的性能比ReenTrantLock差很多，具体表现为随着并发量的增加，synchronized吞吐量下降很严重。
+  - JDK1.6之后，synchronized很多地方使用了CAS操作，其性能与ReenTrantLock基本持平。
 #### 6、CAS（compare-and-swap）相关问题。
 - CAS，比较并交换，是一种并发同步机制，广泛应用于Java并发包下的工具类，相对于传统的加锁实现同步的方式性能有不错的提升。其原理如下：
   - CAS需要三个操作数，内存地址V，旧的预期值A和即将更新的目标值B（在Java语言实现中，将第一个操作数拆分为对象地址和对象中变量的偏址）。当指令执行时，如果内存地址上的变量与旧的预期值相等，则修改为B，如果不相等，则什么都不做。
@@ -404,5 +441,11 @@ class Client{
   - ABA问题。（取款机类比）
     - 什么是ABA问题？当如果线程拿到的旧的期望值是A，但是在执行CAS之前，第二个线程将该内存地址的值修改为B，第三个线程将该内存地址的值修改为A，那么该线程会误认为在该过程中变量没有任何变化。
     - 解决方案，加个版本号即可，在执行CAS操作时，不仅要必要当前内存地址的值和旧的期望值，而且要比较二者的版本号是否一致。在Java中，使用AtomicStampedReference实现了这个机制。
+#### 7、synchronized与CAS（悲观锁与乐观锁）。
+- Java中的synchronized和ReenTrantLock等独占锁就是悲观锁思想的实现，其更适用与写多读少的情形。
+- 通过使用版本号和CAS来实现乐观锁，适用于读多写少的情形，java.util.concurrent.atomic的原子变量类就是通过CAS实现的。
+- 二者的使用情景
+  - 对于竞争I较少的情况，使用synchronized进行线程阻塞和唤醒以及用户态内核态之间的切换会浪费CPU资源，而CAS基于硬件实现，无需进入内核，且自旋几率较小，因此可以获得更高的性能。
+  - 对于资源竞争比较严重的情况，CAS自旋的几率比较大，从而浪费更多的CPU资源，效率低于synchronized。
 
 ## Java虚拟机
