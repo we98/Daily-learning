@@ -412,10 +412,14 @@ class Client{
   - 相比于synchronized，ReenTrantLock加入了一些高级功能，如等待可中断，公平锁，可实现选择性通知等。
     - 中断等待的机制，通过lock.lockInterruptibly()实现这个机制，也就是说正在等待的线程可以选择放弃等待，去做其他的事情。
     - ReenTrantLock可以实现公平锁，而synchronized只能是非公平锁。公平锁的意思是先等待的线程先获得锁。可以通过ReenTrantLock的构造函数ReentrantLock(boolean fair)来指定是否是公平的。
+      - 公平性与非公平性对比。在公平锁的实现中，如果有线程持有锁或者有其他线程在队列中等待锁，则新发出请求的锁会被放入队列。在非公平的锁中，只有当某个线程持有锁时，新发出请求的锁才会排队。通常，非公平性锁的实现效率高于公平性锁，因为公平性锁会导致额外的线程挂起与恢复操作。因此，JVM实现的锁并没有实现公平性。
     - 选择性通知，synchronized通过搭配对象的wait()和notify()/notifyAll()方法来实现等待和通知。ReenTrantLock也可以实现，但是要搭配Condition接口，但是与synchronized不同的是，一个ReenTrantLock对象可以对应多个Condition对象，也就是可以结合不同的Condition实例来进行选择性通知。synchronized相当于整个lock对象只有一个Condition实例，当调用notifyAll()时会通知所有线程，而Condition调用signalAll()指挥调用在当前对象上等待的线程，较为灵活。
 - 性能已不是选择标准
   - 在JDK1.6之前，synchronized的性能比ReenTrantLock差很多，具体表现为随着并发量的增加，synchronized吞吐量下降很严重。
   - JDK1.6之后，synchronized很多地方使用了CAS操作，其性能与ReenTrantLock基本持平。
+- 如何选择二者？
+  - 在普通的情况下，建议使用synchronized，因为使用ReenTrantLock的危险性要比同步机制高，如果忘记在finally中调用unlock，将会导致难以预测的结果。而且在未来更可能会提升synchronized而不是ReenTrantLock的性能，因为synchronized是JVM的内置属性，能执行一些优化。
+  - 如果需要一些高级功能时才应该使用ReenTrantLock，这些功能包括，可中断的锁获取操作，公平锁等。
 #### 6、CAS（compare-and-swap）相关问题。
 - CAS，比较并交换，是一种并发同步机制，广泛应用于Java并发包下的工具类，相对于传统的加锁实现同步的方式性能有不错的提升。其原理如下：
   - CAS需要三个操作数，内存地址V，旧的预期值A和即将更新的目标值B（在Java语言实现中，将第一个操作数拆分为对象地址和对象中变量的偏址）。当指令执行时，如果内存地址上的变量与旧的预期值相等，则修改为B，如果不相等，则什么都不做。
@@ -447,5 +451,33 @@ class Client{
 - 二者的使用情景
   - 对于竞争I较少的情况，使用synchronized进行线程阻塞和唤醒以及用户态内核态之间的切换会浪费CPU资源，而CAS基于硬件实现，无需进入内核，且自旋几率较小，因此可以获得更高的性能。
   - 对于资源竞争比较严重的情况，CAS自旋的几率比较大，从而浪费更多的CPU资源，效率低于synchronized。
+#### 8、AQS相关内容。
+- AQS，同步器，是Java并发包中的一个帮助构建并发工具类的框架，其原理是：
+  
+  - 通过同步器中维护的一个状态变量来标识着资源的访问状态，根据当前变量的不同状态来决定当前发出请求的线程是否能得到共享资源访问的资格，如果可以访问，则将该线程置为有效的工作线程，同时对这个状态做出修改。如果不能访问，则将阻塞该线程，将该线程加入到队列中去。
+- AQS中提供了很多常用的工具类，如ReenTrantLock、ReentrantReadWriteLock、Semaphore、CountDownLatch、CyclicBarrier等。接下来对他们进行详细的介绍。
+  - ReenTrantLock和ReentrantReadWriteLock
+  - Semaphore
+    - 允许多个线程同时访问，是共享锁的概念，而ReenTrantLock则是互斥锁，通过在构造函数中传入一个N，代表资源数量。
+    - 调用acquire(N)代表代表试图得到N个许可，如果不能，则阻塞
+    - 调用release(N)代表释放N个许可
+    - 同时在构造函数中可以传入第二个fair参数
+  - CountDownLatch
+    - 构造函数N代表同步的是N个工作线程。
+    - 可以认为是一个计数器，当N个工作线程的工作没有完成之前，协调线程（主线程）处于等待状态，直到这N个线程完成他们的工作。
+    - N个工作线程完成相应的工作后，调用countDown()，减小count计数，代表当前线程已经完成工作
+    - 协调线程在初始化和分配完N个线程的任务后，便调用await()函数，直到count计数变为0，协调线程才能继续向下运行。
+    - 可以将CountDownLatch做这样的类比：进入游戏之前需要准备，每个用户代表一个线程，直到所有用户全部准备好，主线程才能继续向下运行开始游戏。
+  - CyclicBarrier
+    - 代表N个线程之间的相互同步，N个工作线程相互协调，只有当N个线程全部到达某个同步点时，再一起向下运行。
+    - 这里没有countDown()的概念了，因为N个线程相互协调，而不需要一个主线程出面协调，主线程可能已经执行结束。
+    - 当某个线程已经到达同步点时，如果还有现成没有到达同步点，则调用await()函数等待，直到所有工作线程都到达同步点，CyclicBarrier会唤醒所有的线程同时向下执行。
+  - CountDownLatch和CyclicBarrier的区别
+    | CountDownLatch | CyclicBarrier |
+|-|-|
+| 减计数方式 | 加计数方式 |
+| 计算为0时释放所有等待的线程 | 计数达到指定值时释放所有等待线程 |
+| 调用countDown()方法计数减一，调用await()方法只进行阻塞，对计数没任何影响 | 调用await()方法计数加1，若加1后的值不等于构造方法的值，则线程阻塞 |
+| 不可重复利用 | 可重复利用 |
 
 ## Java虚拟机
