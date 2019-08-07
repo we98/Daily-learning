@@ -16,7 +16,7 @@
 - question16: 判断链表是否属于回文结构，时间复杂度O(N)（事实上，关于链表的问题时间复杂度都是这样，主要区别在于空间复杂度），使用几种空间复杂度来解决这个问题，笔试的时候推荐使用高的空间复杂度，因为只要过了就行，而面试时最好使用低的空间复杂度。
 - question17: 链表的荷兰国旗问题（对空间复杂度不做要求），以及进阶版（时间复杂度为O(N)，空间复杂度为O(1)，且排序之后要稳定）。
 - question18: 两个单链表相交的一系列问题。①判断一个单链表有环或者无环，如果无环，返回null，如果有环，返回入环节点。②得到两个无环链表的第一个相交的节点，如果不相交，返回null。③得到两个有环链表的第一个相交的节点，如果不相交，返回null。这道题难度比较大，且用到了一些数学证明。
-- question19: 二叉树的先序中序后序遍历递归和非递归实现。
+- question19: 二叉树的先序中序后序遍历递归和非递归实现，以及使用0(1)空间的Morris遍历，参考：<https://www.cnblogs.com/AnnieKim/archive/2013/06/15/morristraversal.html>
 - question20: 打印二叉树的函数。
 - question21: 给定任何一个二叉树中的节点（节点中加入parent指针），找到其前驱节点和后继节点，前驱和后继分别是中序遍历中在这个node前和后的节点。
 - question22: 二叉树的序列化和反序列化。lintcode地址：[https://www.lintcode.com/problem/serialize-and-deserialize-binary-tree/description](https://www.lintcode.com/problem/serialize-and-deserialize-binary-tree/description)
@@ -42,3 +42,4 @@
 - question42: leetcode题目：[https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array](https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array)，通过二分查找得出和目标值相等的所有数的下标范围，不存在相等则返回[-1, -1]。
 - question43: leetcode题目：[https://leetcode.com/problems/multiply-strings](https://leetcode.com/problems/multiply-strings)，实现字符串的乘法，思想是用一个字符与另一个字符串相乘，最后再加起来，注意进位要正确。
 - question44：常见二分搜索代码总结。①找到恰好相等的数；②找到第一个大于等于目标值的数；③找到第一个大于目标值的数；④找到最后一个小于等于目标值的数；⑤找到最后一个小于目标值的数。相关题目：[https://www.nowcoder.com/practice/70610bf967994b22bb1c26f9ae901fa2?tpId=13&tqId=11190&tPage=2&rp=2&ru=%2Fta%2Fcoding-interviews&qru=%2Fta%2Fcoding-interviews%2Fquestion-ranking](https://www.nowcoder.com/practice/70610bf967994b22bb1c26f9ae901fa2?tpId=13&tqId=11190&tPage=2&rp=2&ru=%2Fta%2Fcoding-interviews&qru=%2Fta%2Fcoding-interviews%2Fquestion-ranking)
+- question45：进制转换问题，一路求模做除法

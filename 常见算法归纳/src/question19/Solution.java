@@ -50,6 +50,35 @@ public class Solution {
 		}
 		System.out.println();
 	}
+	/**
+     * 不使用栈的前序遍历，思想是将树修改为螺旋树，然后修改回原状
+     * 当判断previous.right是否为空时，实则是判断当前是第一次来到这个节点还是第二次
+     * previous.right为空，代表第一次来到这个节点，因此在这个条件下访问元素
+     * @param root
+     */
+    private void preorderMorrisTraversal(TreeNode root){
+        while(root != null){
+            if(root.left == null){
+                System.out.println(root.val);
+                root = root.right;
+            }
+            else{
+                TreeNode previous = root.left;
+                while(previous.right != null && previous.right != root){
+                    previous = previous.right;
+                }
+                if(previous.right == null){
+                    System.out.println(root.val);
+                    previous.right = root;
+                    root = root.left;
+                }
+                else{
+                    previous.right = null;
+                    root = root.right;
+                }
+            }
+        }
+    }
 	
 	/**
 	 * 中序遍历
@@ -89,6 +118,33 @@ public class Solution {
 		}
 		System.out.println();
 	}
+	/**
+     * 代码跟前序遍历一模一样，只不过当previous.right不为空时，代表第二次来到这个节点，因此中序访问
+     * @param root
+     */
+    private void inorderMorrisTraversal(TreeNode root){
+        while (root != null){
+            if(root.left == null){
+                System.out.println(root.val);
+                root = root.right;
+            }
+            else{
+                TreeNode previous = root.left;
+                while (previous.right != null && previous.right != root){
+                    previous = previous.right;
+                }
+                if(previous.right == null){
+                    previous.right = root;
+                    root = root.left;
+                }
+                else{
+                    previous.right = null;
+                    System.out.println(root.val);
+                    root = root.right;
+                }
+            }
+        }
+    }
 	
 	/**
 	 * 后序遍历
