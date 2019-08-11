@@ -43,3 +43,4 @@
 - question43: leetcode题目：[https://leetcode.com/problems/multiply-strings](https://leetcode.com/problems/multiply-strings)，实现字符串的乘法，思想是用一个字符与另一个字符串相乘，最后再加起来，注意进位要正确。
 - question44：常见二分搜索代码总结。①找到恰好相等的数；②找到第一个大于等于目标值的数；③找到第一个大于目标值的数；④找到最后一个小于等于目标值的数；⑤找到最后一个小于目标值的数。相关题目：[https://www.nowcoder.com/practice/70610bf967994b22bb1c26f9ae901fa2?tpId=13&tqId=11190&tPage=2&rp=2&ru=%2Fta%2Fcoding-interviews&qru=%2Fta%2Fcoding-interviews%2Fquestion-ranking](https://www.nowcoder.com/practice/70610bf967994b22bb1c26f9ae901fa2?tpId=13&tqId=11190&tPage=2&rp=2&ru=%2Fta%2Fcoding-interviews&qru=%2Fta%2Fcoding-interviews%2Fquestion-ranking)
 - question45：进制转换问题，一路求模做除法
+- question46: 使用O(nlogn)的方式对链表进行排序，要求占用常量空间，可以使用merge方式和partition方式，但一定要注意细节，leetcode148
