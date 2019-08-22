@@ -427,7 +427,7 @@ int dup2(int fd, int fd2);
 
 - 当使用dup函数时，产生的结果如下图：
 
-  ![img](pictures\dup复制文件描述符.jpg)
+  ![img](pictures/dup复制文件描述符.jpg)
 
 - 复制一个文件描述符的另一种方法是使用fcntl函数
   - 调用dup(fd)等效于调用fcntl(fd, F_DUPFD, 0)
