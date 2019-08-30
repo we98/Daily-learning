@@ -509,3 +509,197 @@ int ioctl(int fd, int request, ... );
 
 - ioctl函数一直是I/O操作的杂物箱，不能用本章中其他函数表示的I/O操作通常都能用ioctl表示，中断I/O是使用ioctl最多的地方
 
+## 第4章——文件和目录
+
+### 4.1 引言
+
+- 本章主要描述文件系统的其他特征和文件的性质，将逐个署名stat结构的每一个成员以了解文件的所有属性
+
+### 4.2 函数stat、fstat、fstatat和lstat
+
+```c
+#include <sys/stat.h>
+struct timespec{
+    time_t tv_sec; // second
+    long tv_nsec; // nano second
+}
+struct stat{
+    mode_t st_mode; // file type & mode(permissions)
+    ino_t st_ino; // i-node number
+    dev_t st_dev; // device number (file system)
+    dev_t st_rdev; // device number for special files
+    nlink_t st_nlink; // number of links
+    uid_t st_uid; // user ID of owner
+    gid_t st_gid; // group ID of owner
+    off_t st_size; // size in bytes, for regular files
+    struct timespec st_atime; // time of last access
+    struct timespec st_mtime; // time of last modification
+    struct timespec st_ctime; // time of last last file status change
+    blksize_t st_blksize; // best I/O block size
+    blkcnt_t st_blocks; // number of disk blocks allocated
+};
+int stat(const char *restrict pathname, struct stat *restrict buf);
+int fstat(int fd, struct stat *buf);
+int lstat(const char *restrict pathname, struct stat *restrict buf);
+int fstatat(int fd, const char *restrict pathname, struct stat *restrict buf, int flag);
+```
+
+- 以下是这几个stat函数的主要用法：
+  - stat函数用于返回与pathname命名文件有关的信息结构，lstat类似于stat，只不过如果当pathname是一个符号链接文件时，将会返回符号链接本身的信息结构，而stat函数将会返回符号链接引用的目标文件的信息结构
+  - fstatat函数为一个相对于当前打开目录的路径名返回文件的信息结构
+    - 如果pathname是绝对路径，或者pathname是相对路径且fd取值AT_FDCWD，则与stat效果一致
+    - 当flag参数的AT_SYMLINK_NOFOLLOW标识被设置时，则该函数不会跟随符号链接。总之，根据flag的取值，fstatat的作用就跟stat或lstat一样
+
+- timespec结构定义了秒和纳秒，不足秒的部分被记入纳秒
+- 使用stat函数最多的地方可能就是ls -l命令，用其可以获得有关一个文件的所有信息
+
+### 4.3 文件类型
+
+- 普通文件。最常用的文件类型，包含的数据是文本还是二进制数据，对于UNIX内核而言并无区别，对普通文件内容的理解由处理该文件的应用程序进行
+
+- 目录文件。每一个目录项是其他文件的名字以及指向与这些文件有关信息的指针。对一个目录具有读权限的任一进程都可以读该目录的内容，**但只有内核可以直接写目录文件**
+- 块特殊文件。提供对设备（如磁盘）带缓冲的访问，每次访问以固定长度为单位进行
+- 字符特殊文件。提供对设备不带缓冲的额访问，每次访问长度可变。系统中的额所有设备要么是字符特殊文件，要么是块特殊文件
+- FIFO。这种类型的文件用于进程间通信，有时也称为命名管道
+- 套接字。用于进程间的网络通信，当然也可以用在同一台机器上进程之间的非网络通信
+- 符号链接。这种类型的文件指向另一个文件
+
+- 文件类型的信息包含在stat结构中的st_mode成员中，通过将st_mode作为参数，可以使用以下宏来确定文件类型：
+  - S_ISREG()：普通文件
+  - S_ISDIR()：目录文件
+  - S_ISCHR()：字符特殊文件
+  - S_ISBLK()：块特殊文件
+  - S_ISFIFO()：管道或FIFO
+  - S_ISLNK()：符号链接
+  - S_ISSOCK()：套接字
+
+### 4.4 设置用户ID和设置组ID
+
+- 与一个进程相关联的ID有6个或更多，分别是：
+
+  - 实际用户ID和实际组ID，用户标识“我们实际上是谁”，这两个字段在登录时取自口令文件中的目录项，在一个登陆会话期间这些值并不改变，当然，超级用户进程有办法改变
+  - 有效用户ID、有效组ID和附属组ID，用于文件访问权限检查
+  - 保存的设置用户ID和保存的设置组ID，由exec函数保存，这两个ID在执行一个程序时包含了有效用户ID和有效组ID的副本
+
+  > 通常，有效用户ID等于实际用户ID，有效组ID等于实际组ID
+  >
+  > 每个文件都有一个所有者和所有组，也就是stat结构中的st_uid和st_gid
+  >
+  > 当执行一个程序文件时，进程的有效用户ID通常就是实际用户ID，有效组ID通常就是实际组ID，但是可以在文件模式字中设置一个标识，含义是，当执行此文件时，将进程的有效用户ID设置为文件所有者的用户ID（st_uid），与此类似，在文件模式字中还存在另外一个标识，含义是当执行此文件时将进程的有效组ID设置为文件的组所有者（st_gid）
+  >
+  > 例如，UNIX系统允许任一用户通过passwd命令改变口令，该程序文件就是一个设置用户ID程序，通过运行这个程序，当前进程的有效用户ID被置为root，因此就可以修改其他用户没有修改权限的/etc/passwd和/etc/shadow文件。因为运行设置用户ID的程序文件的进程通常会得到额外的权限，所以编写这种程序时要特别的谨慎
+  >
+  > 设置用户ID和设置组ID都包含在st_mode中，这两位可以分别使用常量S_ISUID和S_ISGID测试
+
+### 4.5 文件访问权限
+
+- 任何类型的文件都有以下9个访问权限：
+
+  - S_IRUSR，S_IWUSR，S_IXUSR，用户读写执行
+  - S_IRGRP，S_IWGRP，S_IXGRP，组读写执行
+  - S_IROTH，S_IWOTH，S_IXOTH，其他用户读写执行
+
+- 对于着几种访问权限有以下几种常见的解释方式：
+
+  - 使用名字打开任意类型的文件时，对该名字中包含的每一个目录都应具有执行权限。例如为了打开文件/usr/include/stdio.h，需要对目录/、/usr和/usr/include具有执行权限，然后对文件本身具有适当的权限，这取决于以何种模式打开
+  - 对一个文件的读写权限决定了是否能够打开现有文件进行读写操作，这与open函数的打开标识有关
+  - 为了在一个目录中创建一个新文件，必须对该目录具有写和执行权限
+  - 为了删除一个现有文件，必须对包含该文件的目录具有写和执行权限，对该文件本身则不需要有读写权限
+  - 如果用7个exec函数中的任何一个执行某文件，都必须对该文件具有执行权限，该文件还必须是一个普通文件
+
+- 进程每次打开、创建或删除一个文件时，内核就会进行文件访问权限测试，这种测试可能涉及到文件的性质（st_uid、st_gid）和进程的性质（有效用户ID，有效组ID和附属组ID），内核进行测试的方式具体如下：
+
+  - 若进程的有效用户ID是0（超级用户），则允许访问
+  - 若进程的有效用户ID等于文件的st_uid，这代表着进程拥有此文件，如果适当的访问权限位被设置，则允许访问，否则拒绝访问
+  - 若进程的有效组ID或附属组ID之一等于文件的st_gid，如果适当的访问权限位被设置，则允许访问，否则拒绝访问
+  - 若文件的其他用户适当的访问权限位被设置，则允许访问，否则拒绝访问
+
+  > 按照这4步顺序执行，当某一步已经允许访问了，则不再进行之后的步骤
+
+### 4.6 新文件和目录的所有权
+
+- 当使用open或creat或mkdir创建新文件或新目录时，新文件或目录的st_uid和st_gid将会遵循以下规则：
+
+  - 新文件的st_uid被设置为进程的有效用户ID
+
+  - 新文件的st_gid有以下两种选择，这取决于新文件所在的目录是否开启了设置组ID权限位：
+
+    - 若父目录没有开启sgid，则新文件的st_gid是进程的有效组ID
+    - 若父目录开启了sgid，则新文件的st_gid是其父目录的st_gid
+
+    > 开启sgid权限后，使得在某个目录下创建的文件和目录都具有该目录的st_gid，于是文件和目录的组所有权可以从该点向下传递，例如在Linux的/var/mail目录中就是用了这种方法
+
+### 4.7 函数access和faccessat
+
+```c
+#include <unistd.h>
+int access(const char *pathname, int mode);
+int faccessat(int ffd, const char *pathname, int mode, int flag);
+```
+
+- 前面提到过，当进行文件访问权限测试的时候，实际上是测试进程的有效用户ID和有效组ID，而access函数则帮助我们用户测试实际用户ID和实际组ID对特定文件的访问权限
+- mode的取值可以是R_OK、W_OK、X_OK，如果不具有相应的访问权限，则函数返回值小于0
+
+### 4.8 函数umask
+
+```c
+#include <sys/stat.h>
+mode_t umask(mode_t cmask);
+```
+
+- 参数由上面列出的9个常量（S_IRUSR、S_IWUSR）等若干位通过或运算构成的
+- 通过这个函数设置当前进程的umask后，当前进程创建文件或目录的st_mode取值为mode-umask
+- 几种常见的umask值是002阻止其他用户写入你的文件，022阻止同组成员和其他用户写入你的文件，027阻止同组成员写入和其他用户读写执行
+
+### 4.9 函数chmod、fchmod和fchmodat
+
+```c
+#include <sys/stat.h>
+int chmod(const char *pathname, mode_t mode);
+int fchmod(int fd, mode_t mode);
+int fchmodat(int fd, const char *pathname, mode_t mode, int flag);
+```
+
+- 该系列函数用于改变一个文件的权限位
+
+- 如果想要正确使用该函数修改文件的权限位，则当前进程的有效ID必须等于文件的st_uid（该进程持有该文件），或者该进程必须具有超级用户权限
+
+- 参数mode是15个权限位的或运算组合体，除了上面那9个外，还增加了6个，S_ISUID（suid），S_ISGID（sgid），S_ISVTX（sticky），S_IRWXU（用户读写执行），S_IRWXG（组读写执行），S_IRWXO（其他读写执行）
+
+- 注意当使用该函数修改文件权限时，应先保存文件原来的权限，再在原来的基础上进行打开和关闭操作，代码如下：
+
+  ```c
+  int main(void){
+      struct stat buf;
+      stat("foo", &buf);
+      chmod("foo", (buf.st_mode & ~S_IXGRP) | S_ISGID);
+      exit(0);
+  }
+  ```
+
+### 4.10 粘着位
+
+- 对目录设置粘着位时，只有对该目录具有写权限的用户并且满足下列条件之一的，才能删除或重命名该目录下的文件：
+
+  - 拥有此文件
+  - 拥有此目录
+  - 是超级用户
+
+  > 目录/tmp和目录/var/tmp是设置粘着位的典型，任何用户对都可以在这两个目录中创建、读写执行文件，但是用户不能删除或重命名属于其他人的文件，因为这两个目录的文件模式中都设置了粘着位
+
+### 4.11 函数chown、fchown、fchownat和lchown
+
+```c
+#include <unistd.h>
+int chown(const char *pathname, uid_t owner, gid_t group);
+int fchown(int fd, uid_t owner, gid_t group);
+int fchownat(int fd, const char *pathname, uid_t owner, gid_t group, int flag);
+int lchown(const char *pathname, uid_t owner, gid_t group);
+```
+
+- 这类函数使用时存在限制，如下：
+
+  - 只有超级用户进程才能更改该文件的st_uid
+  - 如果进程拥有该文件（有效用户ID等于st_uid），参数owner等于-1或文件的用户ID，并且参数group等于进程的有效组ID或进程的附属组ID之一，那么一个非超级用户进程可以更改该文件的组ID
+
+  > 这就意味着，不能更改其他用户文件的用户ID，只能更改自己拥有文件的组ID，但是只能改到你附属的组
