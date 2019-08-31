@@ -703,3 +703,154 @@ int lchown(const char *pathname, uid_t owner, gid_t group);
   - 如果进程拥有该文件（有效用户ID等于st_uid），参数owner等于-1或文件的用户ID，并且参数group等于进程的有效组ID或进程的附属组ID之一，那么一个非超级用户进程可以更改该文件的组ID
 
   > 这就意味着，不能更改其他用户文件的用户ID，只能更改自己拥有文件的组ID，但是只能改到你附属的组
+
+### 4.12 文件长度
+
+- stat结构中的st_size表示以字节为单位的文件的长度，此字段只对普通文件、目录文件和符号链接有意义
+  - 对于普通文件，其文件长度可以是0
+  - 对于目录，文件长度通常是一个数（如16或512）的整数倍
+  - 对于符号链接，文件长度是再文件名中的实际字节数，如指向/usr/lib的符号链接的长度为8
+- stat结构中的st_blksize和st_blocks从另外一个维度描述了文件长度
+  - st_blksize代表对文件I/O较合适的长度，当用大小进行读操作时，所需的时间最少，事实上，标准I/O库也试图一次读写st_blksize个字节
+  - st_blocks代表当前文件所分配的实际512字节块块数（不同的UNIX版本st_blocks所用的单位可能不是512字节的块）
+- 事实上，很多文件存在空洞，使用命令`du -s filename`可以查看文件所占的实际磁盘块数，如果发现这个值*512小于文件的st_size（通过`ls -l file`可以查看），则文件具有空洞
+
+### 4.13 文件截断
+
+```c
+#include <unistd.h>
+int truncate(const char *pathname, off_t length);
+int ftruncate(int fd, off_t length);
+```
+
+- 如果文件长度大于length，则length以外的数据将不能访问
+- 如果文件长度小于length，文件长度将增加，此时会创建空洞
+
+### 4.14 文件系统
+
+- 磁盘可以分为一个或多个分区，每个分区可以包含一个文件系统。i节点是固定长度的目录项，它包含了有关文件的大部分信息（不包含文件名）
+
+![1567215847606](pictures/磁盘分区文件系统.png)
+
+- 在下图中，有两个目录项同时指向同一个i节点，每一个i节点中都有一个链接结束，也就是stat结构中的st_nlink成员，当链接计数减少至0时，才可以删除该文件，这也是为什么删除一个目录项的函数被称为unlink而不是delete
+- 另外一种链接被称为符号链接，符号链接的实际内容包含了该符号链接所指向的文件的名字
+- i节点包含了文件有关的所有信息：文件类型、文件访问权限位、文件长度和指向文件数据块的指针等，stat结构中的大多数信息都取自i节点，只有两项重要数据存放在目录项中：文件名和i节点编号
+- 因为目录项中的i节点编号指向同一文件系统的相应i节点，一个目录项不能指向另一个文件系统的i节点这也就是ln命令（构造一个指向现有文件的新目录项）不能跨越文件系统的原因
+- 当在不更换文件系统的情况下为一个文件重命名时，该文件的实际内容并未移动，只需要构造一个指向现有i节点的新目录项，并删除老的目录项，链接计数并不会改变。例如将文件/usr/lib/foo重命名为/usr/foo时，如果/usr/lib和/usr在同一个文件系统中，则文件foo的内容无需移动。这也是mv命令通常的操作方式
+
+![1567215929335](pictures/柱面组上的i节点与数据块.png)
+
+- 对于目录块而言，任何一个叶目录（不包含其他任何目录的目录）的链接总数是2，分别是父目录对其的链接和该目录中"."对本身的链接
+- 如果该目录不是一个叶目录，则链接计数大于等于3，分别是其父目录，"."和该目录中包含的子目录
+
+![1567215985781](pictures/i节点与目录块.png)
+
+### 4.15 函数link、linkat、unlink、unlinkat和remove
+
+```c
+#include <unistd.h>
+int link(const char *existingpath, const char *newpath);
+int linkat(int efd, const char *existpath, int nfd, const char *newpath, int flag);
+```
+
+- flag参数是否设置AT_SYMLINK_FOLLOW决定了是对符号链接本身进行链接还是对符号链接的目标进行链接
+- 很多文件系统不允许对于目录的硬连接，这样做可能在文件系统中形成循环，即使允许，也仅限于超级用户才能这样做
+
+```c
+#include <unistd.h>
+int unlink(const char *pathname);
+int unlinkat(int fd, const char *pathname, int flag);
+```
+
+- 解除文件的链接时，则必须包含对该目录项的写和执行权限，但如果对该目录设置了粘着位，则除了对该目录有写权限之外，还应有4.10提到的权限
+
+- 当链接计数达到0时，该文件的内容才可能被删除。但是如果有进程打开了这个文件，则文件内容不会被立刻删除。此时的执行逻辑时，当关闭一个文件时，内核首先检查打开文件的进程个数，如果这个计数达到0，内核再去检查其链接计数，如果也是0，那么删除文件内容
+
+  > 由于unlink的这种特性，可以确保进程创建的临时文件可以一定被删除。如通过open或creat创建一个文件，然后立即调用unlink，由于文件还处于打开状态，不会立刻被删除，但是在进程关闭或进程终止时，该文件会被删除
+
+- 如果pathname是符号链接，那么unlink删除该符号链接，而不是删除有该符号链接的目标文件。**注意，unlink函数与其他函数不一致，如果pathname是符号链接，则unlink操作的是符号链接本身，而不是目标文件，且flag参数意义也与其他参数不一致，当flag取值AT_REMOVEDIR时，unlinkat和rmdir一样用于删除目录，没有提供函数可以删除符号链接指向的文件**
+
+### 4.17 符号链接
+
+- 引入符号链接的原因是为了避开硬连接的一些限制
+
+  - 硬连接通常要求链接和文件位于同一文件系统中
+  - 只有超级用户才能创建指向目录的硬连接
+
+- 符号链接则没有这些限制，可以指向另外一个文件系统的文件、可以建立目录的符号链接，甚至可以链接至一个根本不存在的文件
+
+  > 符号链接在引用目录文件这方面是很有用的，因为如果使用硬链接的方式引用目录文件，则可能造成难以消除的循环，使用符号链接则很容易解决这类问题
+
+### 4.18 创建和读取符号链接
+
+- 由于符号链接文件的特殊性，对符号链接来说，只需要提供创建（同时写进去引用文件）和读取这两个基本操作就可以了，因此可以用symlink和symlinkat函数创建一个符号链接：
+
+  ```c
+  #include <unistd.h>
+  int symlink(const char *actualpath, const char *sympath);
+  int symlinkat(const char *actualpath, int fd, const char *sympath);
+  ```
+
+- 因为open函数会跟随符号链接，因此下面提供的函数用于open、read和close符号链接的组合操作：
+
+  ```c
+  #include <unistd.h>
+  ssize_t readlink(const char *restrict pathname, char *restrict buf, size_t bufsize);
+  ssize_t readlinkat(int fd, const char *restrict pathname, char *restrict buf, size_t bufsize);
+  ```
+
+- 不要求目标文件已经存在，也不要求在同一文件系统内，这大大打破了硬链接的限制
+
+### 4.19 文件的时间
+
+- 文件的时间包括访问时间、修改时间和状态改变时间，由于系统并不维护对一个i节点的最后访问时间，因此access和stat函数这种访问i节点的操作并不会修改文件的任何时间
+- 通过文件时间可以实现一些有意义的操作，如可以删除过去一段时间内没有被访问过的名为a.out的文件
+
+### 4.20 函数futimens、utimensat和utimes
+
+```c
+#inlcude <sys/stat.h>
+int futimens(int fd, const struct timespec times[2]);
+int utimensat(int fd, const char *path, const struct timespec times[2], int flag);
+```
+
+- times数组第一个元素包含访问时间，第二个元素包含修改时间
+
+```c
+#include <sys/time.h>
+int utimes(const char *pathname, const struct timeval times[2]);
+```
+
+- utimes函数用于对路径名进行操作
+
+- 如下的程序将文件长度截断为0，但并不更改其访问时间及修改时间，首先用stat函数得到这些时间，然后截断，最后重置
+
+  ```c
+  int main(int argc, char *argv[]){
+      int i, fd;
+      struct stat statbuf;
+      struct timespec times[2];
+      for(i = 1; i < argc, ++i){
+          stat(argv[i], &statbuf);
+          fd = open(argv[i], O_RDWR | O_TRUNC);
+          times[0] = statbuf.st_atim;
+          times[1] = statbuf.st_mtim;
+          close(fd);
+      }
+      exit(0);
+  }
+  ```
+
+- 以上的程序可以修改这两个时间戳，但是无法修改最后改变时间
+
+### 4.22 读目录
+
+- 对目录具有读访问权限的任一用户都可以读目录，但是，为了防止文件系统产生混乱，只有内核才能写目录
+- 一个目录的写权限位和执行权限位决定了是否能在该目录中创建和删除文件，并不代表着能写目录本身
+
+### 4.24 设备特殊文件
+
+- st_dev和st_rdev用于表示相关文件所在的设备
+- 设备由主次版本号标记，对于st_dev来说，其表示的是磁盘（主）上的文件系统（次）
+
+- 而st_rdev是字符特殊文件和块特殊文件才有的值，这个值表示的是实际设备的设备号
