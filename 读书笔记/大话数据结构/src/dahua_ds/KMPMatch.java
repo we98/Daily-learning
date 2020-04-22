@@ -3,6 +3,8 @@ package dahua_ds;
 import java.util.Arrays;
 import java.util.Scanner;
 
+//@LeetcodeFinished
+//@Except getNextVal
 public class KMPMatch {
     /**
      * 朴素匹配算法
