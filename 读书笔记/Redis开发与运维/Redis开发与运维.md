@@ -845,7 +845,6 @@
     \<zlend>
   - 一个ziplist可以包含多个entry，entry中又包含当前entry的长度与上一个entry的长度，因此可以实现双向查找
   - 内部结构如图：![image-20200522163127807](images/ziplist结构.png)
-
 - ziplist结构特点如下：
   - 内部变现为一个连续内存数组
   - 可以模拟双向链表结构，以O(1)的时间复杂度出入队列
@@ -862,3 +861,245 @@
   - length：元素个数
   - contents：整数数组，从小到大排序
 - intset插入复杂度N，查询复杂度logN，整体占用空间非常小，所以如果长度可控的话，写入速度也非常快，因此，当使用整数集合时尽量使用intset编码
+
+## 第9章 哨兵
+
+- Redis Sentinel解决的问题：一旦主节点出现故障不能服务，Sentinel可以自动完成从节点到主节点的晋升，同时通知应用方更新主节点地址
+
+### 9.1 基本概念
+
+- Redis数据节点：主节点和从节点
+- Sentinel节点集合：若干个Sentinel节点
+- Redis Sentinel：Redis高可用实现方案，包括Sentinel节点集合和Redis数据节点
+
+#### 9.1.1 主从复制的问题
+
+- 主从复制的作用
+  - 备份，主节点故障的情况下，从节点可以顶替主节点
+  - 读写分离，从节点可以帮助主节点分担读压力
+- 主从复制的问题
+  - 一旦主节点出现了问题，需要手动将一个从节点晋升为主节点，同时，还需要通知应用方修改主节点地址，整个过程都需要人工干预
+  - 主节点的写能力收到单机的限制
+  - 主节点的存储能力收到单机的限制
+- 第一个问题是Redis高可用问题，使用Redis Sentinel解决；第二，三个问题属于Redis分布式问题，会在第10章介绍
+
+#### 9.1.2 高可用
+
+- Redis主从模式下主节点出现故障后，通过以下几步进行故障转移
+  - 主节点发生故障后，客户端连接失败，从节点也连接失败导致复制中断
+  - 发现主节点故障后，需要选出一个从节点，执行slaveof no one命令使其称为新的主节点
+  - 更新应用方新的主节点信息
+  - 原来的从节点去复制新的主节点
+  - 原来的主节点恢复后，也去复制新的主节点
+- Redis Sentinel正是为了实现上述过程的自动化出现的，主要解决了以下问题
+  - 如何判断主节点故障不可达
+  - 如果有多个从节点，怎样保证只有一个晋升为主节点
+  - 如何通知客户端新的主节点信息
+
+#### 9.1.3 Redis Sentinel的高可用
+
+- 主节点发生故障时，Redis Sentinel能自动完成**故障发现，故障转移和通知应用方**，完成真正的高可用
+
+- Redis Sentinel是一个分布式架构，其中包含若干个Sentinel节点和Redis数据节点
+  - 每个Sentinel节点会对所有的数据节点和其余Sentinel做监控
+  - 当某个Sentinel发现节点不可达时，会对节点做下线标识（主观下线），如果被标识的是数据节点中的主节点，那么它会与其他Sentinel节点进行协商，如果大多数Sentinel节点都认为该主节点不可达（协商一致），它们会选举出来一个Sentinel节点作为领导者来完成故障恢复的工作，同时这个Sentinel也负责通知应用方，如图是领导者完成的工作，与9.1.2中描述类似![image-20200523151704069](images/领导者进行故障转移.png)
+  - 整个过程完全自动，所以Redis Sentinel解决了Redis的高可用问题
+- Redis Sentinel架构只是在原来主从复制的架构基础上，增加了一系列特殊的Redis节点（Sentinel节点）用来定时监控数据节点，也就是说Redis Sentinel架构并没有对原来的主从复制架构做任何特殊处理，架构图如下![image-20200523151434211](images/Redis Sentinel.png)
+
+- 通过以上分析，可以看出Redis Sentinel具有以下几个功能
+  - 监控：定期检测数据节点，其余Sentinel是否可达
+  - 通知：将故障转移的结果通知给应用方
+  - 主节点故障转移
+  - 配置提供者：客户端在初始化连接时，通过Redis Sentinel获取主节点相关信息
+- Redis Sentinel包含了若干个Sentinel节点，这么做有两个好处
+  - 对于节点故障判断是由多个Sentinel共同完成的，可以有效的防止误判
+  - 由多个Sentinel节点组成，即使个别不可用，整个Sentinel节点集合也是健壮的
+- 需要注意的是，Sentinel本身就是独立的Redis节点，只不过它们有一些特殊，不存储数据，只支持部分命令
+
+### 9.2 安装与部署
+
+### 9.2.4 配置优化
+
+- sentinel monitor \<master-name> \<ip> \<port> \<quorum>，用来配置监控的主节点
+  - master-name是主节点的别名
+  - quorum代表判定主节点不可达所需要的票数
+  - **实际上，Sentinel也会监控所有的从节点与其他的Sentinel数据节点，但是从配置中并没有看到，那是因为这些信息可以从与主节点的交互中得到，这样，可以动态的得到从节点和Sentinel列表。并且，有关从节点和其他Sentinel的信息会在启动之后自动修改到配置文件中**
+  - quorum一般设置为num(Sentinel)/2，并且当票数到达max(quorum, num(Sentinel)/2)时，才会进行故障转移
+- sentinel down-after-milliseconds \<master-name> \<times>
+  - 每个Sentinel节点定期发送ping命令判断其他节点是否可达，如果超时时间超过times，则判断为不可达
+
+#### 9.2.5 部署技巧
+
+- Sentinel不应该部署到同一台物理机器上
+- 部署至少三个且奇数个Sentinel节点
+- 一套Sentinel节点既可以监控一个主节点，也可以监控多个主节点，如何选择
+  - 如果是同一业务的主节点集合，那么可以监控多个主节点
+  - 否则，使用一套Sentinel节点监控一个主节点即可，此时每个Redis主节点都有自己的Sentinel集合，但容易造成资源浪费
+
+### 9.4 客户端连接
+
+#### 9.4.1 Redis Sentinel的客户端
+
+- Sentinel节点具备监控，通知，故障转移，配置提供者等若干功能，因此，实际上最了解主节点信息的就是Sentinel节点集合
+- 而每个主机点是通过\<master-name>标识的，所以如果想要正确连接Redis Sentinel，必须有Sentinel节点集合和masterName两个参数
+
+#### 9.4.2 Sentinel客户端的基本实现原理
+
+- 基本步骤如下
+  - 遍历Sentinel集合，获取一个可用的Sentinel，因为Sentinel节点之间会贡献信息，所以从任意一个Sentinel节点获取主节点信息都是可以的
+  - 在一个可用的Sentinel节点上，通过sentinel get-master-addr-by-name master-name可以获取主节点相关信息，这样就得到了与主节点的连接
+  - 验证当前主节点是否是真正的主节点，主要是为了防止故障转移期间的主节点变化
+  - 持续与各个Sentinel保持连接，一旦主节点发生变化，就会有完成故障转移的Sentinel领导者通知客户端新的主节点信息
+
+#### 9.4.3 Jedis操作Redis Sentinel
+
+- 类似于普通的JedisPool，但为了区分，Jedis提供了JedisSentinelPool，不过JedisSentinelPool仍然保存的是与主节点的连接，只不过这些与主节点的连接是通过Sentinel初始化的
+
+  - 构造JedisSentinelPool的代码如下
+
+    ```java
+    public JedisSentinelPool(String masterName,
+                             Set<String> sentinels,
+                             final GenericObjectPoolConfig poolConfig,
+                             final int connectionTimeout,
+                             final int soTimeout,
+                             final String password,
+                             final int database,
+                             final String clientName) {
+    	…
+    	HostAndPort master = initSentinels(sentinels, masterName);
+    	initPool(master);
+    	…
+    }
+    ```
+
+  - 获取一个可用的Sentinel节点代码如下，可以看出得到任意一个可用的Sentinel即可得到主节点信息
+
+    ```java
+    private HostAndPort initSentinels(Set<String> sentinels, 
+                                      final String masterName) {
+        // 主节点
+        HostAndPort master = null;
+        // 遍历所有sentinel节点
+        for (String sentinel : sentinels) {
+            // 连接sentinel节点
+            HostAndPort hap = toHostAndPort(Arrays.asList(sentinel.split(":")));
+            Jedis jedis = new Jedis(hap.getHost(), hap.getPort());
+            // 使用sentinel get-master-addr-by-name masterName获取主节点信息
+            List<String> masterAddr = jedis.sentinelGetMasterAddrByName(masterName);
+            // 命令返回列表为空或者长度不为2，继续从下一个sentinel节点查询
+            if (masterAddr == null || masterAddr.size() != 2) {
+            	continue;
+        	}
+        // 解析masterAddr获取主节点信息
+        	master = toHostAndPort(masterAddr);
+        // 找到后直接跳出for循环
+        	break;
+        }
+        if (master == null) {
+        // 直接抛出异常，
+        	throw new Exception();
+        }
+        // 为每个sentinel节点开启主节点switch的监控线程
+        for (String sentinel : sentinels) {
+            final HostAndPort hap = toHostAndPort(Arrays.asList(sentinel.split(":")));
+            MasterListener masterListener = new MasterListener(masterName,
+                                                               hap.getHost(),
+                                                               hap.getPort());
+            masterListener.start();
+        }
+        // 返回结果
+        return master;
+    }
+    ```
+
+  - 通过主节点，初始化连接池中的Jedis连接对象，如上文代码中`initPool(master);`
+
+  - 通过`masterListener.start();`为每一个Sentinel开启一个新的线程，用于接收Sentinel领导者完成故障转移后发来的新主节点的信息。接收信息的原理如下：Sentinel在故障转移的不同阶段，会往自身的不同channel发布信息，代表当前节点的完成，而客户端只需要订阅不同的channel就能得到故障转移的状态，对于客户端而言，最感兴趣的channel是"+switch-master"，即完成了主节点的重新选择，**因此，Redis Sentinel通知客户端的机制实质上是通过发布订阅的方式来完成的**，客户端实现代码如下
+
+    ```java
+    Jedis sentinelJedis = new Jedis(sentinelHost, sentinelPort);
+    // 客户端订阅Sentinel节点上"+switch-master"(切换主节点)频道
+    sentinelJedis.subscribe(new JedisPubSub() {
+        @Override
+        public void onMessage(String channel, String message) {
+            String[] switchMasterMsg = message.split(" ");
+            if (switchMasterMsg.length > 3) {
+                // 判断是否为当前masterName
+                    if (masterName.equals(switchMasterMsg[0])) {
+                    // 发现当前masterName发生switch，使用initPool重新初始化连接池
+                    initPool(toHostAndPort(switchMasterMsg[3], switchMasterMsg[4]));
+                }
+            }
+        }
+    }, "+switch-master");
+    ```
+
+- 因此，重新描述一下Jedis Sentinel客户端的实现，可以发现，内容与9.4.2完全一致
+  - 遍历Sentinel集合，得到一个可用的Sentinel
+  - 通过Sentinel得到主节点信息，然后初始化连接池中的所有Jedis对象，与主节点建立连接
+  - 通过不同的线程监控所有的Sentinel，Sentinel领导者完成故障转移之后，会将主节点信息通过发布订阅的方式返回给客户端，客户端收到这个信息后，根据新的主节点信息，重新初始化池中的Jedis对象
+
+### 9.5 实现原理
+
+- Redis Sentinel的基本实现原理主要包括以下几个部分
+  - 故障发现
+    - 三个定时任务
+    - 主观下线
+    - 客观下线
+  - 故障转移
+    - Sentinel领导者选举
+    - 故障转移
+
+#### 9.5.1 三个定时监控任务
+
+- 三个定时任务是用来监控所有数据节点与Sentinel节点可达性的重要保证
+  - 每隔10秒，Sentinel会向所有主节点和从节点发送info命令获取最新的拓扑结构
+    - 可以获取从节点信息，这也就是为什么不需要在配置文件中配置从节点信息
+    - 新的从节点加入可以立即感受到
+    - 节点不可达或故障后，可以更新拓扑结构
+  - 每隔2秒，Sentinel会向Redis数据节点的_sentinel\_:hello频道上发送一些信息，同时每个Sentinel也会对订阅该频道，这些信息包括**当前Sentinel本身的信息以及当前Sentinel对于主节点状态的判断信息**，这完成了以下两个工作
+    - 通过接收别的Sentinel发送的其本身的信息，当前Sentinel可以获得其他Sentinel的信息，这也是为什么不需要配置其他Sentinel，完成了Sentinel的自动发现
+    - Sentinel节点之间交换主节点的状态，作为后面客观下线以及领导者选举的依据
+  - 每隔1秒，每个Sentinel会向前两个过程得到的所有主从节点和Sentinel节点发送ping命令，检测这些节点是否可达
+- 通过上面的定时任务，Sentinel节点对整个Redis Sentinel的其他节点都建立了连接，实现了对每个节点的监控，如图：![image-20200523162345550](images/对每个结点的监控.png)
+
+#### 9.5.2 主观下线与客观下线
+
+- 主观下线
+  - 每隔1秒的ping命令如果超时的话，Sentinel就会对该节点进行失败判定，这个行为叫做主观下线，存在误判的可能
+- 客观下线
+  - 当发现主观下线的是主节点时，该Sentinel会通过sentinel ismaster-
+    down-by-addr命令向其他Sentinel节点询问对主节点的判断，其他Sentinel节点会通过每隔2秒的定时任务通过发布订阅机制向其他Sentinel回复自己对主节点的判断以及投票的Sentinel id，如果票数超过\<quorum>，那么此时Sentinel就会做出客观下线的决定
+  - 注意，从节点和Sentinel节点在主观下线后，没有后续的故障转移操作
+
+#### 9.5.3 领导者Sentinel节点选举
+
+- 如果Sentinel节点对于主节点已经做了客观下线，是不是就立刻开始故障转移呢
+- 并不是，实际上故障转移只需要一个Sentinel来完成，所以还会做一个领导者选举的工作，大致思路如下：
+  - 每个Sentinel都可能成为领导者，当它发现主节点主观下线后，会向其他节点发送sentinel is-master-down-by-addr命令，不仅发送了自己对主节点状态的判断，也表明自己向成为领导者
+  - 其余Sentinel收到命令后，也会向其他节点发送信息，如果自己判断可达，就返回可达，如果判断不可达，返回不可达同时返回自己同意当上领导者的Sentinel id。注意，如果当前Sentinel已经同意过某一个Sentinel做领导者，就不能再同意其他的了，也就是说，每个Sentinel只能有一票
+  - 如果该Sentinel发现自己的票数已经大于等于max（quorum，
+    num（sentinels）/2+1），那么它将成为领导者
+  - 如果此次没有选出领导者，那么将会进行下一轮选举
+
+#### 9.5.4 故障转移
+
+- 选出领导者之后开始故障转移，步骤如下
+  - 在从节点列表中选出一个节点作为主节点，选择方法如下
+    - 过滤不健康的（主观下线，断线）
+    - 选择slave_priority最高的从节点
+    - 选择复制偏移量最大的从节点
+    - 选择runid最小的从节点
+  - 选出来后，执行slaveof no one使其成为主节点
+  - 向剩余的从节点发送复制命令
+  - 将原来的主节点作为从节点，复制新的主节点
+
+#### 9.6.2 节点运维
+
+- 节点下线
+  - 主节点下线，选择一个合适的从节点，使用sentinel failover使其晋升即可
+  - 从节点和Sentinel节点：直接操作即可。如果使用了读写分离，注意要让客户端感知到从节点的下线
+- 节点上线
+  - 从节点和Sentinel节点：直接相应命令添加即可，因为有了Sentinel机制，会自动发现
+  - 主节点：一个Sentinel只能有一个主节点，不需要添加，如果需要替换，使用sentinel failover手动故障转移
